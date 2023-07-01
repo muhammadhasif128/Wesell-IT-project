@@ -8,7 +8,7 @@ app.secret_key = 'your secret key'
 
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'pwd'
+app.config['MYSQL_PASSWORD'] = 'JALALASSS'
 app.config['MYSQL_DB'] = 'project_db'
 
 mysql = MySQL(app)
