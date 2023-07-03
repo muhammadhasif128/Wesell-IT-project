@@ -8,7 +8,7 @@ app.secret_key = 'your secret key'
 
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'JALALASSS'
+app.config['MYSQL_PASSWORD'] = 'pwd'
 app.config['MYSQL_DB'] = 'project_db'
 
 mysql = MySQL(app)
@@ -74,6 +74,7 @@ def register():
         password = request.form['password']
         email = request.form['email']
         phone = request.form['phone']
+        confirm_password = request.form['confirm_password']
 
         # Check if the username already exists in the database
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
@@ -82,6 +83,8 @@ def register():
 
         if existing_user:
             message = 'Username already exists. Please choose a different username.'
+        elif password != confirm_password:
+            message = 'Password and confirm password do not match.'
         else:
             cursor.execute('INSERT INTO user (username, password, email, phone_number, is_admin) VALUES (%s, %s, %s, %s, 0)',
                            (username, password, email, phone,))
@@ -94,6 +97,7 @@ def register():
         message = 'Please fill out the form completely!'
 
     return render_template('register.html', message=message)
+
 
 
 @app.route('/user/home')
