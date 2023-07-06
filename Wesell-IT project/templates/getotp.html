@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Get OTP
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h1>Get OTP</h1>
+        <p>Please enter the OTP you received:</p>
+        <form method="POST" action="/verifyotp">
+            <label for="otp">Enter OTP:</label>
+            <input type="text" id="otp" name="otp" required>
+            <button type="submit">Verify OTP</button>
+            {% if error_message %}
+                <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+            {% endif %}
+        </form>
+    </div>
+{% endblock %}
