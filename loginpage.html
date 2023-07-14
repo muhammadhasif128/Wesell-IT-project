@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Resell-IT - Customer Login
+{% endblock %}
+
+{% block content %}
+  <div class="container">
+        <div class="login">
+            <h1>Login</h1>
+            <form action="{{ url_for('customer_login') }}" method="post" autocomplete="off">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Login</button>
+            </form>
+            {% if msg %}
+                <div class="alert alert-danger" role="alert">{{ msg }}</div>
+            {% endif %}
+                <p class="text-center mt-3">
+                    Don't have an account? <a href="/register">Sign up here</a>
+                </p>
+            <p class="text-center mt-3">
+                    Forgot your account? <a href="/forgetpassword">Reset password here</a>
+                </p>
+            <p class="text-center mt-3">
+                    Your account is locked? <a href="/recoveraccount">Recover account here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+{% endblock %}

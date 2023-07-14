@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Get OTP
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h1>Get OTP</h1>
+        <p>Please enter the OTP you received:</p>
+        <form method="POST" action="/verifyotp_lock">
+            <label for="otp">Enter OTP:</label>
+            <input type="text" id="otp" name="otp" required>
+            <button type="submit">Verify OTP</button>
+            {% if error_message %}
+                <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+            {% endif %}
+        </form>
+        <form method="POST" action="/resend_otp_lock">
+            <button type="submit">Resend OTP</button>
+        </form>
+        <p id="timer">Time remaining: <span id="countdown"></span></p>
+    </div>
+
+    <script>
+        // Set the OTP expiration time in seconds
+        var otpExpiration =300;
+
+        // Function to update the countdown timer
+        function updateTimer() {
+            var countdownElement = document.getElementById('countdown');
+            var seconds = otpExpiration % 60;
+            var minutes = Math.floor(otpExpiration / 60);
+            var formattedTime = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            countdownElement.textContent = formattedTime;
+
+            // Update the OTP expiration time
+            otpExpiration--;
+
+            // Stop the timer when the OTP expiration reaches 0
+            if (otpExpiration < 0) {
+                clearInterval(timer);
+                countdownElement.textContent = 'Expired';
+            }
+        }
+
+        // Start the timer
+        var timer = setInterval(updateTimer, 1000);
+    </script>
+{% endblock %}
