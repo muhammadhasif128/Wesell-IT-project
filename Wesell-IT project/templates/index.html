@@ -8,61 +8,115 @@
 {% block content %}
 <html>
 <head>
-	<title>Appointment Form</title>
+    <title>Appointment Form</title>
     <style>
+
         *{
-            text-align: center;
             list-style-type:none;
         }
 
-        input {
-            width: 50%;
-            padding: 12px 20px;
-            margin: 8px 0;
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+        }
+
+        .form-container {
+            max-width: 500px;
+            margin-top: 50px;
+            margin-left: 500px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-title {
+            color: #ff0000;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
             box-sizing: border-box;
-            border: 1px solid black;
+            border: 1px solid #ccc;
             border-radius: 4px;
+            font-size: 14px;
         }
 
-        input.s:hover{
-            background-color: #3e8e41
+        .form-input:hover {
+            border-color: #333;
         }
 
-        label.a{
+        .form-error {
             color: red;
-            font-size: 30px;
+            font-size: 14px;
+            margin-top: 5px;
         }
 
+        .form-submit {
+            background-color: #4CAF50;
+            color: #fff;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 170px;
+        }
+
+        .form-submit:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
-    <form method="POST" action="/appointment">
-        <label class="a">Appointment Form</label>
-        <dl>
-        {{ form.csrf_token}}
-        {{ render_field(form.name) }}
-        <ul>
-         {% for error in form.name.errors %}
-            <li style="color:red;">{{ error }}</li>
-         {% endfor %}
-        </ul>
-            <ul>
-            <li style="margin-left: 600px;">{{ form.recaptcha }}</li>
+    <div class="form-container">
+        <form method="POST" action="/appointment">
+            <h2 class="form-title" style="text-align: center;">Appointment Form</h2>
+            {{ form.csrf_token }}
+            <!--<label>Name</label>-->
+            {{ render_field(form.name, class="form-input") }}
+            {% for error in form.name.errors %}
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+
+            <!--<label>Dropdown</label>-->
+            {{ render_field(form.dropdown, class="form-input") }}
+            {% for error in form.dropdown.errors %}
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+
+            <!--<label>Date</label>-->
+            {{ render_field(form.book_date, class="form-input") }}
+            {% for error in form.book_date.errors %}
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+
+            <hr>
+           <!--tc-->
+            <style>
+                  white-space: nowrap;
+            </style>
+            {{ render_field(form.tc) }}
+             {% for error in form.tc.errors %}
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+
+            <hr>
+            <!--<label>Captcha</label>-->
+            {{ render_field(form.recaptcha, class="form-input") }}
             {% for error in form.recaptcha.errors %}
-        </ul>
-        <ul>
-             <li style="color:red;">{{ error }}</li>
-         {% endfor %}
-        </ul>
-        <input class="s" type="submit" value="login">
-        </dl>
-    </form>
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+
+
+            <input class="form-submit" type="submit" value="Submit">
+        </form>
+    </div>
 </body>
- <script src="https://www.google.com/recaptcha/api.js"></script>
- <script>
-   function onSubmit(token) {
-     document.getElementById("demo-form").submit();
-   }
-  </script>
+<script src="https://www.google.com/recaptcha/api.js"></script>
 </html>
 {% endblock %}

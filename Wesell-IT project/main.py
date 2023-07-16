@@ -5,7 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
 import random, time
 from wtforms.validators import InputRequired, regexp
-from wtforms import StringField, SelectField
+from wtforms import StringField, SelectField, DateField, BooleanField
 from flask_wtf import FlaskForm, RecaptchaField
 
 
@@ -477,12 +477,15 @@ def logout():
 
 class apptform(FlaskForm):
     name = StringField('Name', validators=[InputRequired(), regexp(r'^[a-zA-Z0-9_]{3,16}$')])
-    recaptcha = RecaptchaField()
     # ^ asserts the start of the string.
     # [a-zA-Z0-9_-] matches any alphanumeric character (letters and digits), underscores, or hyphens.
     # {3,16} specifies the allowed length range for the username (between 3 and 16 characters).
     # $ asserts the end of the string.
-
+    recaptcha = RecaptchaField()
+    choices = [('Laptops', 'Laptops'), ('PC', 'PC'), ('Phones', 'Phones'), ('Drives', 'Drives')]
+    dropdown = SelectField('Type Gadgets To Trade In', choices=choices)
+    book_date = DateField('Booking Date', validators=[InputRequired()], format='%d-%m-%Y')
+    tc = BooleanField('I accept the terms and conditions', validators=[InputRequired()])
 
 @app.route('/appointment', methods=['GET', 'POST'])
 def index():
