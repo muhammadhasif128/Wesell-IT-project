@@ -4,15 +4,22 @@ import MySQLdb.cursors
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
 import random, time
-import pymysql
+from wtforms.validators import InputRequired, regexp
+from wtforms import StringField, SelectField
+from flask_wtf import FlaskForm, RecaptchaField
+
 
 app = Flask(__name__)
 app.secret_key = 'your secret key'
+app.config['RECAPTCHA_PUBLIC_KEY'] = "6LdXxSsnAAAAAI_dz4BUEBxolopEv0nlBK7F_-4-"
+app.config['RECAPTCHA_PRIVATE_KEY'] = "6LdXxSsnAAAAAAEyr-iHH4t8MkViAO2I-9zwv1QH"
 
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'JALALASSS'
 app.config['MYSQL_DB'] = 'project_db'
+
+
 
 mysql = MySQL(app)
 bcrypt = Bcrypt(app)
@@ -467,6 +474,23 @@ def logout():
     session.pop('username', None)
     # Redirect to login page
     return redirect(url_for('customer_login'))
+
+class apptform(FlaskForm):
+    name = StringField('Name', validators=[InputRequired(), regexp(r'^[a-zA-Z0-9_]{3,16}$')])
+    recaptcha = RecaptchaField()
+    # ^ asserts the start of the string.
+    # [a-zA-Z0-9_-] matches any alphanumeric character (letters and digits), underscores, or hyphens.
+    # {3,16} specifies the allowed length range for the username (between 3 and 16 characters).
+    # $ asserts the end of the string.
+
+
+@app.route('/appointment', methods=['GET', 'POST'])
+def index():
+    form = apptform()
+    if form.validate_on_submit():
+        return '<h1 style="text-align:center; color:red;">Thank you {}, for submitting your appointment' .format(form.name.data)
+    else:
+        return render_template('index.html', form=form)
 
 
 if __name__ == '__main__':
