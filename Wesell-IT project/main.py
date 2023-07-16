@@ -1,15 +1,16 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
-import random
+import random, time
+
 app = Flask(__name__)
 app.secret_key = 'your secret key'
 
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'JALALASSS'
+app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'project_db'
 
 mysql = MySQL(app)
@@ -46,7 +47,7 @@ def customer_login():
             if account['login_attempts'] >= MAX_LOGIN_ATTEMPTS:
                 locked = True
                 msg = 'Your account is locked. Please contact the administrator.'
-            elif password == account['password']:
+            elif bcrypt.check_password_hash(account['password'], password):
                 # Reset the login attempts if the user is not an admin
                 if not account['is_admin']:
                     cursor.execute('UPDATE user SET login_attempts = 0 WHERE user_id = %s', (account['user_id'],))
@@ -57,7 +58,11 @@ def customer_login():
                 session['username'] = account['username']
 
                 if account['is_admin'] == 1:
-                    return render_template('adminhome.html', username=account['username'])
+                    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+                    cursor.execute('SELECT * FROM appts_table where is_approved = False')
+                    appointments = cursor.fetchall()
+
+                    return render_template('adminhome.html', username=account['username'],appointments_list = appointments)
                 else:
                     return render_template('customerhome.html', username=account['username'])
             else:
@@ -71,6 +76,26 @@ def customer_login():
             msg = 'User does not exist!'
 
     return render_template('loginpage.html', msg=msg, locked=locked)
+@app.route('/approveCust',methods = ['GET','POST'])
+def approve_cust():
+    if request.method == 'POST':
+        appt_id_updating = request.form['appointment_id']
+        update_query = "UPDATE appts_table SET is_approved = True WHERE appointment_id = %s"
+        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        cursor.execute(update_query,(appt_id_updating,))
+        mysql.connection.commit()
+
+        if 'loggedin' in session:
+          # We need all the account info for the user so we can display it on the profile page
+          cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+          cursor.execute('SELECT * FROM user WHERE user_id = %s', (session['id'],))
+          account = cursor.fetchone()
+
+          cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+          cursor.execute('SELECT * FROM appts_table where is_approved = False')
+          appointments = cursor.fetchall()
+
+          return render_template('adminhome.html', username=account['username'],appointments_list = appointments)
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     # Output message if something goes wrong...
@@ -95,9 +120,14 @@ def register():
         elif password != confirm_password:
             message = 'Password and confirm password do not match.'
         else:
+            # Hash the password
+            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+            # Insert the user into the database
             cursor.execute('INSERT INTO user (username, password, email, phone_number, is_admin) VALUES (%s, %s, %s, %s, 0)',
-                           (username, password, email, phone,))
+                           (username, hashed_password, email, phone,))
             mysql.connection.commit()
+
             message = 'You have successfully registered!'
             return redirect(url_for('customer_login', message=message))
 
@@ -131,7 +161,6 @@ def forget_password():
 
     return render_template('forgetpassword.html', error_message=error_message)
 
-
 @app.route('/recoveraccount', methods=['GET', 'POST'])
 def recover_account():
     error_message = None
@@ -148,9 +177,11 @@ def recover_account():
             if login_attempts >= MAX_LOGIN_ATTEMPTS:
                 session['reset_account'] = username
 
+                # Set the reset_username in the session
+                session['reset_username'] = username
+
                 # Redirect to the OTP generation page
                 return redirect(url_for('generate_otp_lock'))
-
 
             else:
                 # Account is not locked, display an error message
@@ -160,65 +191,6 @@ def recover_account():
             error_message = 'Invalid username or email. Please try again.'
 
     return render_template('recoveraccount.html', error_message=error_message)
-
-
-@app.route('/generateotp_lock')
-def generate_otp_lock():
-    # Generate a 6-digit random OTP
-    otp = str(random.randint(100000, 999999))
-
-    # Send the OTP to the user's email address
-    send_otp_email(session['reset_account'], otp)
-
-    # Store the OTP in the session for verification
-    session['otp'] = otp
-
-    return render_template('getotp_lock.html')
-
-
-@app.route('/verifyotp_lock', methods=['POST'])
-def verify_otp_lock():
-    user_otp = request.form['otp']
-    stored_otp = session.get('otp')
-
-    if user_otp == stored_otp:
-        # OTP matches, perform the desired action (e.g., reset password, grant access)
-        # Clear the OTP from the session
-        session.pop('otp', None)
-
-        # Reset login_attempts to 0 for the user
-        cursor = mysql.connection.cursor()
-        cursor.execute('UPDATE user SET login_attempts = 0 WHERE username = %s', (session['reset_account'],))
-        mysql.connection.commit()
-
-        return redirect(url_for('recover_success'))  # Redirect to the recover_success page
-
-    else:
-        # OTP does not match, show an error message or redirect to a failure page
-        return render_template('getotp_lock.html', error_message='Invalid OTP')  # Example error message
-
-
-
-
-@app.route('/recoversuccess')
-def recover_success():
-    return render_template('recoversuccess.html')
-
-
-
-
-@app.route('/generateotp')
-def generate_otp():
-    # Generate a 6-digit random OTP
-    otp = str(random.randint(100000, 999999))
-
-    # Send the OTP to the user's email address
-    send_otp_email(session['reset_username'], otp)
-
-    # Store the OTP in the session for verification
-    session['otp'] = otp
-
-    return render_template('getotp.html')
 
 
 def send_otp_email(username, otp):
@@ -239,23 +211,175 @@ def send_otp_email(username, otp):
     mail.send(msg)
 
 
+
+
+@app.route('/generateotp_lock')
+def generate_otp_lock():
+    # Generate a new OTP
+    otp = str(random.randint(100000, 999999))
+
+    # Set the OTP expiry time in seconds (5 minutes in this case)
+    otp_expiry = 300
+
+    # Store the OTP and its expiry timestamp in the session
+    session['otp'] = {
+        'code': otp,
+        'expiry_timestamp': time.time() + otp_expiry
+    }
+
+    # Send the OTP to the user's email address
+    send_otp_email(session['reset_username'], otp)
+
+    # Render the template with the OTP form and expiry time
+    return render_template('getotp_lock.html', expiry_time=otp_expiry)
+
+
+
+@app.route('/verifyotp_lock', methods=['POST'])
+def verify_otp_lock():
+    user_otp = request.form['otp']
+    stored_otp = session.get('otp')
+    new_otp = session.get('new_otp')  # Get the new OTP from the session
+
+    if new_otp:
+        if user_otp == new_otp['code']:
+            current_timestamp = time.time()
+            if current_timestamp <= new_otp['expiry_timestamp']:
+                # Clear the new OTP from the session
+                session.pop('new_otp', None)
+                cursor = mysql.connection.cursor()
+                cursor.execute('UPDATE user SET login_attempts = 0 WHERE username = %s', (session['reset_account'],))
+                mysql.connection.commit()
+                return redirect(url_for('recover_success'))  # Example action after new OTP verification
+            else:
+                # New OTP has expired
+                return render_template('getotp_lock.html', error_message='New OTP has expired. Please request a new OTP.')
+
+    elif stored_otp:
+        if user_otp == stored_otp['code']:
+            current_timestamp = time.time()
+            if current_timestamp <= stored_otp['expiry_timestamp']:
+                # Clear the old OTP from the session
+                session.pop('otp', None)
+                cursor = mysql.connection.cursor()
+                cursor.execute('UPDATE user SET login_attempts = 0 WHERE username = %s', (session['reset_account'],))
+                mysql.connection.commit()
+                return redirect(url_for('recover_success'))  # Example action after old OTP verification
+            else:
+                # Old OTP has expired
+                return render_template('getotp_lock.html', error_message='Old OTP has expired. Please request a new OTP.')
+
+    # OTP does not match or is not found in the session
+    return render_template('getotp_lock.html', error_message='Invalid OTP')  # Example error message
+
+
+
+
+@app.route('/resend_otp_lock', methods=['POST'])
+def resend_otp_lock():
+    stored_otp = session.get('otp')
+    if stored_otp:
+        # Generate a new OTP
+        new_otp = {
+            'code': str(random.randint(100000, 999999)),
+            'expiry_timestamp': time.time() + 300
+        }
+
+        # Update the new OTP in the session
+        session['new_otp'] = new_otp
+
+        # Send the new OTP to the user's email address
+        send_otp_email(session['reset_username'], new_otp['code'])
+
+        return render_template('getotp_lock.html', message='OTP has been resent successfully!', expiry_time=300)
+
+    # OTP data not found, handle it (e.g., show an error message or redirect)
+    return render_template('getotp_lock.html', error_message='OTP not found. Please generate a new OTP.')
+
+@app.route('/recoversuccess')
+def recover_success():
+    return render_template('recoversuccess.html')
+
+
+
+
+@app.route('/generateotp')
+def generate_otp():
+    # Generate a new OTP
+    otp = str(random.randint(100000, 999999))
+
+    # Set the OTP expiry time in seconds (10 seconds in this case)
+    otp_expiry = 300
+
+    # Store the OTP and its expiry timestamp in the session
+    session['otp'] = {
+        'code': otp,
+        'expiry_timestamp': time.time() + otp_expiry
+    }
+
+    # Send the OTP to the user's email address
+    send_otp_email(session['reset_username'], otp)
+
+    # Render the template with the OTP form and expiry time
+    return render_template('getotp.html', expiry_time=otp_expiry)
+
 @app.route('/verifyotp', methods=['POST'])
 def verify_otp():
     user_otp = request.form['otp']
     stored_otp = session.get('otp')
+    new_otp = session.get('new_otp')  # Get the new OTP from the session
 
-    if user_otp == stored_otp:
-        # OTP matches, perform the desired action (e.g., reset password, grant access)
-        # Clear the OTP from the session
-        session.pop('otp', None)
-        return redirect(url_for('reset_password'))  # Example action
+    if new_otp:
+        if user_otp == new_otp['code']:
+            current_timestamp = time.time()
+            if current_timestamp <= new_otp['expiry_timestamp']:
+                # Clear the new OTP from the session
+                session.pop('new_otp', None)
+                return redirect(url_for('reset_password'))  # Example action after new OTP verification
+            else:
+                # New OTP has expired
+                return render_template('getotp.html', error_message='New OTP has expired. Please request a new OTP.')
 
-    else:
-        # OTP does not match, show an error message or redirect to a failure page
-        return render_template('getotp.html', error_message='Invalid OTP')  # Example error message
+    elif stored_otp:
+        if user_otp == stored_otp['code']:
+            current_timestamp = time.time()
+            if current_timestamp <= stored_otp['expiry_timestamp']:
+                # Clear the old OTP from the session
+                session.pop('otp', None)
+                return redirect(url_for('reset_password'))  # Example action after old OTP verification
+            else:
+                # Old OTP has expired
+                return render_template('getotp.html', error_message='Old OTP has expired. Please request a new OTP.')
+
+    # OTP does not match or is not found in the session
+    return render_template('getotp.html', error_message='Invalid OTP')  # Example error message
 
 
-# Route for resetting the password
+
+@app.route('/resend_otp', methods=['POST'])
+def resend_otp():
+    stored_otp = session.get('otp')
+    if stored_otp:
+        # Generate a new OTP
+        new_otp = {
+            'code': str(random.randint(100000, 999999)),
+            'expiry_timestamp': time.time() + 300
+        }
+
+        # Update the new OTP in the session
+        session['new_otp'] = new_otp
+
+        # Send the new OTP to the user's email address
+        send_otp_email(session['reset_username'], new_otp['code'])
+
+        return render_template('getotp.html', message='OTP has been resent successfully!', expiry_time=300)
+
+    # OTP data not found, handle it (e.g., show an error message or redirect)
+    return render_template('getotp.html', error_message='OTP not found. Please generate a new OTP.')
+
+
+
+
 @app.route('/reset_password', methods=['GET', 'POST'])
 def reset_password():
     if 'reset_username' not in session:
@@ -266,9 +390,12 @@ def reset_password():
         confirm_password = request.form['confirm_password']
 
         if new_password == confirm_password:
+            # Hash the new password
+            hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
             # Update the user's password in the database
             cursor = mysql.connection.cursor()
-            cursor.execute('UPDATE user SET password = %s WHERE username = %s', (new_password, session['reset_username']))
+            cursor.execute('UPDATE user SET password = %s WHERE username = %s', (hashed_password, session['reset_username']))
             mysql.connection.commit()
 
             session.pop('reset_username', None)  # Remove reset_username from session
@@ -278,6 +405,7 @@ def reset_password():
             return render_template('resetpassword.html', error_message='Password and confirm password do not match.')
 
     return render_template('resetpassword.html')
+
 
 
 @app.route('/user/home')
