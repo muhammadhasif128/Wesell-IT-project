@@ -4,18 +4,20 @@ import MySQLdb.cursors
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
 import random, time
+import pymysql
 
 app = Flask(__name__)
 app.secret_key = 'your secret key'
 
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_PASSWORD'] = 'JALALASSS'
 app.config['MYSQL_DB'] = 'project_db'
 
 mysql = MySQL(app)
 bcrypt = Bcrypt(app)
 
+# admin password = 123
 # Flask-Mail configuration for Gmail SMTP
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
