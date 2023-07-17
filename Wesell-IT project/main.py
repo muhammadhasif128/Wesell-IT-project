@@ -1,12 +1,28 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
-from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
 import random, time
 from wtforms.validators import InputRequired, regexp, Length
 from wtforms import StringField, SelectField, DateField, BooleanField
 from flask_wtf import FlaskForm, RecaptchaField
+import cryptography
+from flask_bcrypt import Bcrypt
+from cryptography.fernet import Fernet  # Import Fernet from the cryptography library
+import base64
+
+from datetime import datetime, timedelta
+
+
+from twilio.rest import Client
+import keys
+
+client = Client(keys.account_sid, keys.auth_token)
+
+start_time = None
+
+# Helper function to encrypt data using Fernet encryption
+
 
 
 app = Flask(__name__)
@@ -38,6 +54,76 @@ mail = Mail(app)
 def home():
     return render_template('home.html')
 
+
+@app.route('/generate2fa')
+def generate_2fa():
+    encrypted_account_phone = request.args.get('encrypted_account_phone')  # Get the encrypted 'acc_phone_no' parameter from the URL
+    btes_sized = encrypted_account_phone.encode()
+    file = open('symmetric.key', 'rb')
+    key = file.read()
+    file.close()
+
+    f = Fernet(key)
+
+    decrypted_account_phone = f.decrypt(encrypted_account_phone)
+    decrypted_account_phone = decrypted_account_phone.decode()
+
+    twoFA = str(random.randint(100000, 999999))
+
+    session['twoFA'] = twoFA
+
+    #send twilio message to phone no
+    message = client.messages.create(
+        body='Your verification code is : %s'%twoFA,
+        from_=keys.twilio_no,
+        to='+65' + decrypted_account_phone #extract from sql database
+    )
+
+    return render_template('OTP.html')
+
+
+
+
+@app.route('/verify2fa',methods=['GET', 'POST'])
+def verify_2fa():
+    if request.method == 'POST' and '2fa_code' in request.form:
+        # Get the user's 2fa code from session
+
+        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        cursor.execute('SELECT * FROM user WHERE username = %s', (session['username'],))
+        account = cursor.fetchone()
+
+        user_2fa = request.form['2fa_code']
+
+        # Get the user's 2fa code from session
+        stored_2fa = session.get('twoFA')
+
+        if user_2fa == stored_2fa:
+            # 2FA code is valid, redirect to the user's home page
+            session['loggedin'] = True
+            session['id'] = account['user_id']
+            session['username'] = account['username']
+
+            if account['is_admin'] == 1:
+                cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+                cursor.execute('SELECT * FROM appts_table where is_approved = False')
+                appointments = cursor.fetchall()
+
+                return render_template('adminhome.html', username=account['username'],appointments_list = appointments)
+            else:
+                return render_template('customerhome.html', username=account['username'])
+        else:
+            # 2FA code is invalid
+            # Increment the login attempts if the user is not an admin
+            if not account['is_admin']:
+                cursor.execute('UPDATE user SET login_attempts = login_attempts + 1 WHERE user_id = %s', (account['user_id'],))
+                mysql.connection.commit()
+
+                msg = 'Incorrect username/password!'
+            msg = 'Invalid 2FA code'
+
+    return render_template('OTP.html', msg = msg)
+
 @app.route('/loginpage', methods=['GET', 'POST'])
 def customer_login():
     msg = ''
@@ -47,44 +133,40 @@ def customer_login():
     if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
         username = request.form['username']
         password = request.form['password']
+        session['username'] = username
 
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute('SELECT * FROM user WHERE username = %s', (username,))
         account = cursor.fetchone()
 
+        acc_phone_no = account['phone_number']
+
+        acc_phone_no = acc_phone_no.encode()
+        key = Fernet.generate_key()
+        with open("symmetric.key","wb") as fo:
+            fo.write(key)
+
+        f = Fernet(key)
+        encrypted_account_phone = f.encrypt(acc_phone_no)
+
         if account:
             if account['login_attempts'] >= MAX_LOGIN_ATTEMPTS:
                 locked = True
                 msg = 'Your account is locked. Please contact the administrator.'
-            elif bcrypt.check_password_hash(account['password'], password):
+            elif bcrypt.check_password_hash(account['password'],password):
                 # Reset the login attempts if the user is not an admin
                 if not account['is_admin']:
                     cursor.execute('UPDATE user SET login_attempts = 0 WHERE user_id = %s', (account['user_id'],))
                     mysql.connection.commit()
 
-                session['loggedin'] = True
-                session['id'] = account['user_id']
-                session['username'] = account['username']
+                return redirect(url_for('generate_2fa', encrypted_account_phone=encrypted_account_phone))
 
-                if account['is_admin'] == 1:
-                    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-                    cursor.execute('SELECT * FROM appts_table where is_approved = False')
-                    appointments = cursor.fetchall()
 
-                    return render_template('adminhome.html', username=account['username'],appointments_list = appointments)
-                else:
-                    return render_template('customerhome.html', username=account['username'])
-            else:
-                # Increment the login attempts if the user is not an admin
-                if not account['is_admin']:
-                    cursor.execute('UPDATE user SET login_attempts = login_attempts + 1 WHERE user_id = %s', (account['user_id'],))
-                    mysql.connection.commit()
-
-                msg = 'Incorrect username/password!'
         else:
             msg = 'User does not exist!'
+    return render_template('login_index_new.html', msg=msg, locked=locked)
 
-    return render_template('loginpage.html', msg=msg, locked=locked)
+
 @app.route('/approveCust',methods = ['GET','POST'])
 def approve_cust():
     if request.method == 'POST':
