@@ -7,6 +7,7 @@ import random, time
 from wtforms.validators import InputRequired, regexp
 from wtforms import StringField, SelectField, DateField, BooleanField
 from flask_wtf import FlaskForm, RecaptchaField
+from mysql.connector import connect
 
 
 app = Flask(__name__)
@@ -475,8 +476,17 @@ def logout():
     # Redirect to login page
     return redirect(url_for('customer_login'))
 
+@app.route('/protected')
+def protected():
+    if 'logged_in' in session:
+        # The user is logged in, allow access to the protected page
+        return "Welcome to the protected page!"
+    else:
+        # Redirect to the login page if the user is not logged in
+        return redirect(url_for('customer_login'))
+
 class apptform(FlaskForm):
-    name = StringField('Name', validators=[InputRequired(), regexp(r'^[a-zA-Z0-9_]{3,16}$')])
+    username = StringField('Name', validators=[InputRequired(), regexp(r'^[a-zA-Z0-9_]{3,16}$')])
     # ^ asserts the start of the string.
     # [a-zA-Z0-9_-] matches any alphanumeric character (letters and digits), underscores, or hyphens.
     # {3,16} specifies the allowed length range for the username (between 3 and 16 characters).
@@ -484,17 +494,37 @@ class apptform(FlaskForm):
     recaptcha = RecaptchaField()
     choices = [('Laptops', 'Laptops'), ('PC', 'PC'), ('Phones', 'Phones'), ('Drives', 'Drives')]
     dropdown = SelectField('Type Gadgets To Trade In', choices=choices)
-    book_date = DateField('Booking Date', validators=[InputRequired()], format='%d-%m-%Y')
+    appointment_datetime = DateField('Booking Date', validators=[InputRequired()])
     tc = BooleanField('I accept the terms and conditions', validators=[InputRequired()])
+
 
 @app.route('/appointment', methods=['GET', 'POST'])
 def index():
     form = apptform()
     if form.validate_on_submit():
-        return '<h1 style="text-align:center; color:red;">Thank you {}, for submitting your appointment' .format(form.name.data)
-    else:
-        return render_template('index.html', form=form)
+        username = form.username.data
+        appointment_datetime = form.appointment_datetime.data
 
+        # Create a cursor to execute SQL queries
+        cursor = mysql.connection.cursor()
+
+        # Check if the username exists in the user table
+        cursor.execute("SELECT username FROM user WHERE username = %s", (username,))
+        existing_username = cursor.fetchone()
+
+        if existing_username:
+            # Insert the data into the database
+            cursor.execute("INSERT INTO appts_table (username, appointment_datetime) VALUES (%s, %s)", (username, appointment_datetime))
+
+            mysql.connection.commit()
+            cursor.close()
+
+            return '<h1 style="text-align:center; color:red;">Thank you {}, for submitting your appointment' .format(form.username.data)
+        else:
+            return 'Invalid username. Please provide a valid username.'
+
+    else:
+          return render_template('index.html', form=form)
 
 if __name__ == '__main__':
     app.run(debug=True)

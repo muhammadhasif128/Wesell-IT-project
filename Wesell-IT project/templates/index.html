@@ -78,8 +78,8 @@
             <h2 class="form-title" style="text-align: center;">Appointment Form</h2>
             {{ form.csrf_token }}
             <!--<label>Name</label>-->
-            {{ render_field(form.name, class="form-input") }}
-            {% for error in form.name.errors %}
+            {{ render_field(form.username, class="form-input") }}
+            {% for error in form.username.errors %}
                 <p class="form-error">{{ error }}</p>
             {% endfor %}
 
@@ -90,8 +90,8 @@
             {% endfor %}
 
             <!--<label>Date</label>-->
-            {{ render_field(form.book_date, class="form-input") }}
-            {% for error in form.book_date.errors %}
+            {{ render_field(form.appointment_datetime, class="form-input") }}
+            {% for error in form.appointment_datetime.errors %}
                 <p class="form-error">{{ error }}</p>
             {% endfor %}
 
