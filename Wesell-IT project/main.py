@@ -4,10 +4,9 @@ import MySQLdb.cursors
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
 import random, time
-from wtforms.validators import InputRequired, regexp
+from wtforms.validators import InputRequired, regexp, Length
 from wtforms import StringField, SelectField, DateField, BooleanField
 from flask_wtf import FlaskForm, RecaptchaField
-from mysql.connector import connect
 
 
 app = Flask(__name__)
@@ -485,6 +484,7 @@ def protected():
         # Redirect to the login page if the user is not logged in
         return redirect(url_for('customer_login'))
 
+
 class apptform(FlaskForm):
     username = StringField('Name', validators=[InputRequired(), regexp(r'^[a-zA-Z0-9_]{3,16}$')])
     # ^ asserts the start of the string.
@@ -495,6 +495,7 @@ class apptform(FlaskForm):
     choices = [('Laptops', 'Laptops'), ('PC', 'PC'), ('Phones', 'Phones'), ('Drives', 'Drives')]
     dropdown = SelectField('Type Gadgets To Trade In', choices=choices)
     appointment_datetime = DateField('Booking Date', validators=[InputRequired()])
+    appointment_location = StringField('Location', validators=[InputRequired(), Length(min=5, max=20)])
     tc = BooleanField('I accept the terms and conditions', validators=[InputRequired()])
 
 
@@ -504,6 +505,7 @@ def index():
     if form.validate_on_submit():
         username = form.username.data
         appointment_datetime = form.appointment_datetime.data
+        appointment_location = form.appointment_location.data
 
         # Create a cursor to execute SQL queries
         cursor = mysql.connection.cursor()
@@ -514,17 +516,18 @@ def index():
 
         if existing_username:
             # Insert the data into the database
-            cursor.execute("INSERT INTO appts_table (username, appointment_datetime) VALUES (%s, %s)", (username, appointment_datetime))
+            cursor.execute("INSERT INTO appts_table (username, appointment_datetime, appointment_location) VALUES (%s, %s, %s)", (username, appointment_datetime, appointment_location))
 
             mysql.connection.commit()
             cursor.close()
 
-            return '<h1 style="text-align:center; color:red;">Thank you {}, for submitting your appointment' .format(form.username.data)
+            return '<h1 style="text-align:center; color:red; margin-top: 400px;">Thank you {}, for submitting your appointment' .format(form.username.data)
         else:
             return 'Invalid username. Please provide a valid username.'
 
     else:
-          return render_template('index.html', form=form)
+        return render_template('index.html', form=form)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

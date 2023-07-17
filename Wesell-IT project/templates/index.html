@@ -89,9 +89,15 @@
                 <p class="form-error">{{ error }}</p>
             {% endfor %}
 
-            <!--<label>Date</label>-->
+            <!--<label>DateTime</label>-->
             {{ render_field(form.appointment_datetime, class="form-input") }}
             {% for error in form.appointment_datetime.errors %}
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+
+             <!--<label>location</label>-->
+            {{ render_field(form.appointment_location, class="form-input") }}
+            {% for error in form.appointment_location.errors %}
                 <p class="form-error">{{ error }}</p>
             {% endfor %}
 
